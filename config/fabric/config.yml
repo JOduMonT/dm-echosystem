@@ -1,0 +1,12 @@
+# Fabric configuration
+models:
+  default: gpt-4o
+
+providers:
+  openai:
+    api_key: ${OPENAI_API_KEY}
+  anthropic:
+    api_key: ${ANTHROPIC_API_KEY}
+
+patterns_directory: /patterns
+custom_patterns_directory: /custom-patterns

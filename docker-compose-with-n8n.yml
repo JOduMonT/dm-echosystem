@@ -1,0 +1,65 @@
+services:
+  fabric-serve:
+    image: kayvan/fabric:latest
+    container_name: fabric-serve
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config/fabric:/root/.config/fabric
+    command: fabric --serve --host 0.0.0.0 --port 8080
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  fabric-mcp:
+    build:
+      context: ./fabric-mcp
+      dockerfile: Dockerfile
+    container_name: fabric-mcp-server
+    ports:
+      - "3000:3000"
+    depends_on:
+      - fabric-serve
+    environment:
+      - FABRIC_BASE_URL=http://fabric-serve:8080
+      - FABRIC_MCP_LOG_LEVEL=INFO
+    command: fabric-mcp --http-streamable --host 0.0.0.0 --port 3000 --mcp-path /mcp
+    restart: unless-stopped
+  telos-mcp:
+    build:
+      context: ./telos-mcp
+      dockerfile: Dockerfile
+    container_name: telos-mcp-server
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./config/telos:/app/context:ro
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - TELOS_REPO=${TELOS_REPO}
+      - MCP_PORT=3001
+    restart: unless-stopped
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n-main
+    ports:
+      - "5678:5678"
+    volumes:
+      - ./config/n8n:/home/node/.n8n
+    environment:
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678
+      - FABRIC_MCP_URL=http://fabric-mcp:3000/mcp
+      - TELOS_MCP_URL=http://telos-mcp:3001/mcp
+      - N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true
+    depends_on:
+      - fabric-mcp
+      - telos-mcp
+    restart: unless-stopped

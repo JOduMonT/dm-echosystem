@@ -1,0 +1,46 @@
+services:
+  fabric-serve:
+    image: kayvan/fabric:latest
+    container_name: fabric-serve
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config/fabric:/root/.config/fabric
+    command: fabric --serve --host 0.0.0.0 --port 8080
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  fabric-mcp:
+    build:
+      context: ./fabric-mcp
+      dockerfile: Dockerfile
+    container_name: fabric-mcp-server
+    ports:
+      - "3000:3000"
+    depends_on:
+      - fabric-serve
+    environment:
+      - FABRIC_BASE_URL=http://fabric-serve:8080
+      - FABRIC_MCP_LOG_LEVEL=INFO
+    command: fabric-mcp --http-streamable --host 0.0.0.0 --port 3000 --mcp-path /mcp
+    restart: unless-stopped
+  telos-mcp:
+    build:
+      context: ./telos-mcp
+      dockerfile: Dockerfile
+    container_name: telos-mcp-server
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./config/telos:/app/context:ro
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - TELOS_REPO=${TELOS_REPO}
+      - MCP_PORT=3001
+    restart: unless-stopped
